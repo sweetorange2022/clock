@@ -13,9 +13,34 @@
 * {box-sizing: border-box;}
 #line1 {font-size:3vw; text-align:center; font-family:arial black, Arial, Helvetica, sans-serif; width:100%; height:100%;}
 #line2 {font-size:17vw; line-height:95%; text-align:center; font-family:arial black, Arial, Helvetica, sans-serif; width:100%; height:100%}
-#line3 {font-size:10vw; text-align:center; font-family:arial black, Arial, Helvetica, sans-serif;}
+#line3 {font-size:10vw; text-align:center;  font-family:arial black, Arial, Helvetica, sans-serif;}
+
 body {margin-top: 0px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;}
-div  {margin-top: 20px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;}
+div  {margin-top: 10px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;}
+        .button-container {
+          text-align:center;
+          margin-right: auto;
+        }
+
+        .fullscreen-button {           
+            display: inline-block;
+            width: auto;
+            background-color: black;
+            color: white;
+            padding: 10px 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .fullscreen-button.hide {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .fullscreen-button:hover {
+            opacity: 1;
+        }
 </style>
 </head>
 
@@ -23,7 +48,12 @@ div  {margin-top: 20px; margin-right: 0px; margin-bottom: 0px; margin-left: 0px;
 <div id="line1" onclick="color();"> </div>
 <div id="line2" onclick="color();"> </div>
 <div id="line3" onclick="color();">
-<canvas id="clockcanvas" width="360" height="360" style="background-color=#d1d4c2"></canvas></div>
+<canvas id="clockcanvas" width="360" height="360" style="background-color:#d1d4c2"></canvas>
+<div class="button-container"></div>
+</div>
+<div class="button-container">
+  <button class="fullscreen-button" id="fullscreen-button" onclick="toggleFullScreen()">全屏</button>
+</div>
 </body>
 
 <script style="LEFT:-180px; WIDTH: 800px; POSITION: relative; TOP: 90px">
@@ -182,27 +212,45 @@ function color() {
   document.getElementById("line1").style.backgroundColor=bg1[colorindex];
   document.getElementById("line2").style.color=fg1[colorindex];
   document.getElementById("line2").style.backgroundColor=bg1[colorindex];
-
   document.getElementById("clockcanvas").style.backgroundColor=bg1[colorindex];
   document.body.style.background = bg1[colorindex];
   
 }
 
 // 全屏切换代码
-var FullscreenFlag = false;
-$('#toggle-fullscreen').click(function () {
-    if (FullscreenFlag) {
-        ExitFullscreen();
-        $(this).attr('title','全屏显示');
-        $(this).html('<i class="fa fa-expand"></i>');
-        FullscreenFlag = false;
+function toggleFullScreen() {
+    let element = document.documentElement;
+    let button = document.getElementById("fullscreen-button");
+
+    if (!document.fullscreenElement && !document.mozFullScreenElement &&
+        !document.webkitFullscreenElement && !document.msFullscreenElement) {
+        // 进入全屏
+        if (element.requestFullscreen) {
+            element.requestFullscreen();
+        } else if (element.mozRequestFullScreen) {
+            element.mozRequestFullScreen();
+        } else if (element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+        } else if (element.msRequestFullscreen) {
+            element.msRequestFullscreen();
+        }
+        button.innerText = "退出全屏";
+        button.classList.add("hide");
     } else {
-        EnterFullscreen();
-        $(this).attr('title','退出全屏');
-        $(this).html('<i class="fa fa-compress"></i>');
-        FullscreenFlag = true;
+        // 退出全屏
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.mozCancelFullScreen) {
+            document.mozCancelFullScreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+        button.innerText = "全屏";
+        button.classList.remove("hide");
     }
-});
+}
 
 </script>
 </html>
