@@ -1,272 +1,792 @@
 <!DOCTYPE html>
-<html manifest="index.appcache">
+<html>
 <head>
-<meta name="description" content="Web Clock">
-<meta name="author" content="sweetorange2021@163.coml.com">
-<meta name="web-clock" content="yes">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>时钟</title>
-
-
+<meta charset="utf-8" />
+<title>甜橙的时钟 & 倒计时</title>
 <style>
-        * {
-                  box-sizing: border-box;  
-        }
-        #line1 {
-                  margin-top: 80px;  
-                  font-size:3vw; 
-                  text-align:center; 
-                  font-family:arial black, Arial, Helvetica, sans-serif; 
-                  width:100%;
-                  height:100%;
-        }
+/* 基础样式重置 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-        #line2 {padding-top: 10px; 
-                  font-size:8vw; 
-                  line-height:95%; 
-                  text-align:center; 
-                  font-family:arial black, Arial, Helvetica, sans-serif; 
-                  width:100%; 
-                  height:100%
-        }
-        #line3 {
-                  padding-top: 30px;  
-                  font-size:9vw; text-align:center;  
-                  font-family:arial black, Arial, Helvetica, sans-serif;
-        }
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    position: relative;
+}
 
-        .button-container {
-          text-align:center;
-          margin-right: auto;
-        }
+/* 按钮样式 - 统一和谐配色 & 统一尺寸 */
+.btn {
+    position: fixed;
+    padding: 12px 20px;
+    background-color: #2c3e50; /* 深蓝灰色，更和谐 */
+    color: #ecf0f1; /* 浅灰白色 */
+    font-size: 16px;
+    cursor: pointer;
+    z-index: 9999;
+    font-family: arial black, sans-serif;
+    border-radius: 8px;
+    border: none;
+    transition: background-color 0.2s ease;
+    right: 20px; /* 所有按钮统一右对齐 */
+    width: 120px; /* 统一按钮宽度 */
+    text-align: center; /* 文字居中 */
+}
 
-        .fullscreen-button {           
-            display: inline-block;
-            width: auto;
-            background-color: black;
-            color: white;
-            padding: 10px 20px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            border-radius: 5px;
-            font-size: 16px;
-        }
+.btn:hover {
+    background-color: #34495e; /* 悬停浅一点 */
+}
 
-        .fullscreen-button.hide {
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
+.btn:active {
+    background-color: #1a252f; /* 点击更深 */
+}
 
-        .fullscreen-button:hover {
-            opacity: 1;
-        }
+/* 按钮位置调整 - 右侧垂直排列 */
+#fullscreen-btn {
+    top: 20px; /* 第一个按钮：顶部 */
+}
+
+#countdown-btn {
+    top: 70px; /* 第二个按钮：全屏按钮下方（间距50px） */
+}
+
+#reset-countdown-btn {
+    top: 120px; /* 第三个按钮：倒计时按钮下方 */
+    display: none; /* 默认隐藏，倒计时界面显示 */
+}
+
+#back-btn {
+    top: 70px; /* 和倒计时按钮同位置 */
+    display: none;
+}
+
+/* 时间设置弹窗 - 优化样式 */
+#modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #2c3e50;
+    padding: 30px;
+    border-radius: 10px;
+    z-index: 10000;
+    display: none;
+    color: #ecf0f1;
+    max-width: 350px;
+    width: 90%;
+}
+
+/* 提示文字样式 */
+.modal-tip {
+    font-size: 14px;
+    color: #f1c40f; /* 醒目黄色 */
+    margin-bottom: 20px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* 滚轮选择器样式 */
+.time-selector {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    justify-content: center;
+    margin-bottom: 25px;
+}
+
+.time-selector select {
+    width: 80px;
+    padding: 10px 8px; /* 调整内边距，避免文字贴边 */
+    font-size: 18px;
+    text-align: center; /* 核心：强制文字居中，解决小时靠右问题 */
+    text-align-last: center; /* 兼容Chrome等浏览器的下拉选中项居中 */
+    border-radius: 5px;
+    border: 2px solid #34495e; /* 增加边框层次感 */
+    background-color: #34495e;
+    color: #ecf0f1;
+    font-family: arial black, sans-serif;
+    /* 新增：美化下拉箭头，统一样式 */
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%23ecf0f1'%3E%3Cpath d='M0 0l6 6 6-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center; /* 箭头位置微调 */
+    background-size: 12px;
+    /* 新增：hover/active状态美化 */
+    transition: all 0.2s ease;
+}
+
+/* 新增：下拉框hover/聚焦样式 */
+.time-selector select:hover {
+    border-color: #4a6580;
+    background-color: #4a6580;
+}
+
+.time-selector select:focus {
+    outline: none;
+    border-color: #27ae60; /* 聚焦时绿色边框，提示选中状态 */
+    box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.2); /* 轻微发光效果 */
+}
+
+/* 兼容Firefox的下拉选中项居中 */
+@-moz-document url-prefix() {
+    .time-selector select {
+        text-align: left;
+        padding-left: 25px; /* Firefox下微调，保证视觉居中 */
+    }
+}
+
+.time-selector span {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+#modal button {
+    padding: 10px 20px;
+    margin: 0 10px;
+    font-size: 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    border: none;
+    font-family: arial black, sans-serif;
+    transition: background-color 0.2s ease;
+    width: 100px; /* 弹窗按钮统一宽度 */
+}
+
+#confirm {
+    background-color: #27ae60; /* 绿色确认 */
+    color: white;
+}
+
+#confirm:hover {
+    background-color: #2ecc71;
+}
+
+#cancel {
+    background-color: #7f8c8d; /* 灰色取消 */
+    color: white;
+}
+
+#cancel:hover {
+    background-color: #95a5a6;
+}
+
+#overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.8);
+    z-index: 9999;
+    display: none;
+}
+
+/* 时钟容器 */
+#clock-wrap {
+    width: 98%;
+    margin: 0 auto;
+    padding-top: 150px;
+    text-align: center;
+    color: #ecf0f1;
+    font-family: arial black, sans-serif;
+}
+
+#line1 {
+    font-size: 3vw;
+    margin-bottom: 10px;
+}
+
+#line2 {
+    font-size: 17vw;
+    line-height: 1;
+    margin-bottom: 15px;
+}
+
+#line3 {
+    font-size: 10vw;
+}
+
+#clockcanvas {
+    background-color: #000;
+    margin: 0 auto;
+}
+
+/* 倒计时容器 - 动态字体大小优化 */
+#countdown-wrap {
+    width: 100%;
+    height: 100%;
+    margin: 0 auto;
+    padding: 0 30px 0;
+    text-align: center;
+    color: #ecf0f1;
+    font-family: arial black, sans-serif;
+    display: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#countdown-title {
+    font-size: 4vw;
+    margin-bottom: 20px;
+    color: #ffffff; /* 纯白色标题 */
+    white-space: nowrap; /* 确保一行显示 */
+    width: 100%;
+    text-align: center;
+}
+
+/* 基础字体大小 - 短内容正常显示 */
+#countdown-show {
+    font-size: 15vw; /* 正常内容的基础大小 */
+    line-height: 1.2;
+    margin-bottom: 0;
+    white-space: nowrap; /* 强制一行显示 */
+    width: 100%;
+    text-align: center;
+    overflow: visible;
+    text-overflow: unset;
+    letter-spacing: 0;
+    transition: font-size 0.2s ease; /* 平滑过渡 */
+}
+
+/* 不同屏幕的基础字体适配 */
+@media (max-width: 480px) {
+    #countdown-show {
+        font-size: 14vw; /* 手机小屏基础大小 */
+    }
+    #countdown-title {
+        font-size: 4.5vw;
+    }
+}
+
+@media (min-width: 1200px) {
+    #countdown-show {
+        font-size: 14vw; /* 大屏基础大小更大 */
+    }
+}
+
+/* 隐藏原有的提示文本 */
+#countdown-tip {
+    display: none;
+}
 </style>
 </head>
+<body>
+<!-- 功能按钮 - 右侧垂直排列（统一尺寸） -->
+<button id="fullscreen-btn" class="btn">全屏显示</button>
+<button id="countdown-btn" class="btn">倒计时</button>
+<button id="reset-countdown-btn" class="btn">重新设置</button>
+<button id="back-btn" class="btn">返回时钟</button>
 
-<body onload="color();topofpage()">
-          <div id="line1" onclick="color();"> </div>
-          <div id="line2" onclick="color();"> </div>
-          <div id="line3" onclick="color();">
-          <canvas id="clockcanvas" width="360" height="360" style="background-color:#d1d4c2"></canvas>
-                    <div class="button-container"></div>
-          </div>
-          <div class="button-container">
-                   <button class="fullscreen-button" id="fullscreen-button" onclick="toggleFullScreen()">全屏</button>
-          </div>
-</body>
+<!-- 弹窗 - 增加提示文字 -->
+<div id="overlay"></div>
+<div id="modal">
+    <div class="modal-tip">请设置倒计时终点时间<br/>（例如现在14点，可选14点以后的时间）</div>
+    <div class="time-selector">
+        <select id="hour-select"></select>
+        <span>:</span>
+        <select id="minute-select"></select>
+    </div>
+    <div style="text-align: center;">
+        <button id="confirm">确认</button>
+        <button id="cancel">取消</button>
+    </div>
+</div>
 
-<script style="LEFT:-180px; WIDTH: 800px; POSITION: relative; TOP: 90px">
-            var myVar = setInterval(function(){digitalclockTime()},1000);
-            var colorindex=0;
+<!-- 时钟区域 -->
+<div id="clock-wrap">
+    <div id="line1"></div>
+    <div id="line2"></div>
+    <div id="line3">
+        <canvas id="clockcanvas" width="360" height="360"></canvas>
+    </div>
+</div>
 
-            var canvas = document.getElementById("clockcanvas");
-            var ctx = canvas.getContext("2d");
-            var radius = canvas.height / 2;
-            ctx.translate(radius, radius);
-            radius = radius * 0.80
-            setInterval(function(){drawClock(ctx,radius)}, 1000);
+<!-- 倒计时区域 - 简化显示 -->
+<div id="countdown-wrap">
+    <div id="countdown-title">距离目标时间还有</div>
+    <div id="countdown-show">00 分 00 秒</div>
+    <div id="countdown-tip">目标时间：--:--</div>
+</div>
 
-            //画一个钟表陪着我～
-            function drawClock() {
-              drawFace(ctx, radius);
-              drawNumbers(ctx, radius);
-              minticks();
-              hourticks();
-              //minticks(ctx, radius);
-              drawTime(ctx, radius);
-            }
+<!-- JS代码放在最后 -->
+<script>
+// ====================== 全局状态管理 ======================
+// 保存倒计时状态，实现返回后恢复
+var countdownState = {
+    isSet: false,       // 是否已设置过倒计时
+    targetTime: null,   // 目标时间
+    timer: null,        // 倒计时定时器
+    lastTextType: null  // 记录上一次的文本类型（用于避免重复调整字体）
+};
 
-            function drawFace(ctx, radius) {
-              var grad;
-              // Clock Face
-              ctx.beginPath();
-              ctx.arc(0, 0, radius, 0, 2*Math.PI);
-              ctx.fillStyle = "white";
-              ctx.fill();
-              // Inner Bezel
-              ctx.beginPath();
-              ctx.lineWidth = 16;
-              ctx.arc(0, 0, radius+8, 0, 2*Math.PI);
-              ctx.strokeStyle = "#e5e5e5";
-              ctx.stroke();
-              // Outer bezel
-              ctx.beginPath();
-              ctx.lineWidth = 8;
-              ctx.arc(0, 0, radius+20, 0, 2*Math.PI);
-              ctx.strokeStyle = "c1c1c1";
-              ctx.stroke();
-              // Circle in center of clock for hands
-              ctx.beginPath();
-              ctx.arc(0, 0, radius*0.08, 0, 2*Math.PI);
-              ctx.fillStyle = '#333';
-              ctx.fill();
-            }
+// ====================== 基础工具函数 ======================
+// 格式化时间（优化：不足10小时不补0，分钟/秒正常补0）
+function fmt(num, type = 'normal') {
+    // type: normal-正常补0（分/秒）, hour-小时专用（不足10不补0）
+    if (type === 'hour') {
+        return num.toString(); // 小时直接返回数字，不补0
+    }
+    return num < 10 ? '0' + num : num;
+}
 
-            function drawNumbers(ctx, radius) {
-              var ang;
-              var num;
-              ctx.font = radius*0.25 + "px arial black";
-              ctx.textBaseline="middle";
-              ctx.textAlign="center";
-              for(num = 1; num < 13; num++){
-                ang = num * Math.PI / 6;
-                ctx.rotate(ang);
-                ctx.translate(0, -radius*0.79);
-                ctx.rotate(-ang);
-                ctx.fillText(num.toString(), 0, 0);
-                ctx.rotate(ang);
-                ctx.translate(0, radius*0.79);
-                ctx.rotate(-ang);
-              }
-            }
+// 关闭弹窗
+function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+}
 
-            function minticks() {
-              for (var i = 0; i < 60; i++) {
-                var length=8;
-                var angle = (i - 3) * (Math.PI * 2) / 60;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                var x1 = Math.cos(angle) * (radius);
-                var y1 = Math.sin(angle) * (radius);
-                var x2 = Math.cos(angle) * (radius-length);
-                var y2 = Math.sin(angle) * (radius-length);
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = '#466B76';
-                ctx.stroke();
-              }
-            }
+/**
+ * 获取文本类型（用于判断是否需要调整字体）
+ * @param {string} text - 倒计时文本
+ * @returns {string} 文本类型：short(仅分秒)、medium(个位数小时)、long(两位数小时)
+ */
+function getTextType(text) {
+    const textLength = text.length;
+    if (textLength <= 7) { // 仅分秒（如45分 10秒）
+        return 'short';
+    } else if (textLength <= 8) { // 个位数小时（如9时 05分 30秒）
+        return 'medium';
+    } else { // 两位数小时（如10时 05分 30秒）
+        return 'long';
+    }
+}
 
-            function hourticks() {
-              for (var i = 0; i < 12; i++) {
-                var length=8;
-                ctx.lineWidth = 5;
-                var angle = (i - 3) * (Math.PI * 2) / 12;
-                ctx.beginPath();
-                var x1 = Math.cos(angle) * (radius);
-                var y1 = Math.sin(angle) * (radius);
-                var x2 = Math.cos(angle) * (radius-length);
-                var y2 = Math.sin(angle) * (radius-length);
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
-                ctx.strokeStyle = '#466B76';
-                ctx.stroke();
-              }
-            }
+/**
+ * 动态调整倒计时字体大小（仅在文本类型变化时调整）
+ * @param {string} text - 要显示的倒计时文本
+ */
+function adjustCountdownFontSize(text) {
+    const showElement = document.getElementById('countdown-show');
+    const screenWidth = window.innerWidth;
+    const textType = getTextType(text);
+    
+    // 如果文本类型没有变化，不重复调整字体
+    if (textType === countdownState.lastTextType) {
+        return;
+    }
+    
+    // 更新最后一次的文本类型
+    countdownState.lastTextType = textType;
+    
+    // 先恢复基础字体大小（避免累积缩小）
+    let baseFontSize;
+    if (screenWidth <= 480) {
+        baseFontSize = 13; // 从14改为13，同步CSS的小屏基础值
+    } else if (screenWidth >= 1200) {
+        baseFontSize = 17; // 从18改为17，同步CSS的大屏基础值
+    } else {
+        baseFontSize = 15; // 从16改为15，同步CSS的普通屏基础值
+    }
+    
+    // 根据文本类型调整缩放比例
+    let fontSizeScale = 1;
+    switch(textType) {
+        case 'medium': // 个位数小时
+            fontSizeScale = screenWidth <= 480 ? 0.85 : 0.9;
+            break;
+        case 'long': // 两位数小时
+            fontSizeScale = screenWidth <= 480 ? 0.7 : 0.8;
+            break;
+        case 'short': // 仅分秒，默认100%
+        default:
+            fontSizeScale = 1;
+            break;
+    }
+    
+    // 设置最终字体大小（使用vw单位，避免像素累积问题）
+    const finalFontSize = baseFontSize * fontSizeScale;
+    showElement.style.fontSize = finalFontSize + 'vw';
+}
 
-            function drawTime(ctx, radius){
-                var now = new Date();
-                var hour = now.getHours();
-                var minute = now.getMinutes();
-                var second = now.getSeconds();
-                //hour
-                hour=hour%12;
-                hour=(hour*Math.PI/6)+    (minute*Math.PI/(6*60))+    (second*Math.PI/(360*60));
-                drawHand(ctx, hour, radius*0.5, radius*0.07, "black");
-                //minute
-                minute=(minute*Math.PI/30)+(second*Math.PI/(30*60));
-                drawHand(ctx, minute, radius*0.8, radius*0.07, "black");
-                // second
-                second=(second*Math.PI/30);
-                drawHand(ctx, second, radius*0.92, radius*0.02, "red");
-            }
+// ====================== 时钟功能 ======================
+// 更新数字时钟
+function updateDigitalClock() {
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = fmt(now.getMonth() + 1);
+    var day = fmt(now.getDate());
+    var hh = fmt(now.getHours());
+    var mm = fmt(now.getMinutes());
+    var ss = fmt(now.getSeconds());
+    
+    document.getElementById('line1').innerText = year + ' 年 ' + month + ' 月 ' + day + ' 日';
+    document.getElementById('line2').innerText = hh + ':' + mm + ':' + ss;
+}
 
-            function drawHand(ctx, pos, length, width, color) {
-                ctx.beginPath();
-                ctx.strokeStyle = color;
-                ctx.lineWidth = width;
-                ctx.lineCap = "round";
-                ctx.moveTo(0,0);
-                ctx.rotate(pos);
-                ctx.lineTo(0, -length);
-                ctx.stroke();
-                ctx.rotate(-pos);
-            }
+// 绘制模拟时钟
+function drawAnalogClock() {
+    var canvas = document.getElementById('clockcanvas');
+    var ctx = canvas.getContext('2d');
+    var radius = canvas.height / 2;
+    
+    // 清除画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(radius, radius);
+    radius = radius * 0.8;
 
-            var fg1=['white'];
-            var bg1=['black'];
+    // 绘制表盘
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    
+    // 绘制刻度
+    // 小时刻度
+    for (var i = 0; i < 12; i++) {
+        ctx.save();
+        ctx.rotate(i * 30 * Math.PI / 180);
+        ctx.beginPath();
+        ctx.moveTo(0, -radius);
+        ctx.lineTo(0, -radius + 15);
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
+        ctx.restore();
+    }
+    
+    // 分钟刻度
+    for (var i = 0; i < 60; i++) {
+        ctx.save();
+        ctx.rotate(i * 6 * Math.PI / 180);
+        ctx.beginPath();
+        ctx.moveTo(0, -radius);
+        ctx.lineTo(0, -radius + 8);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
+        ctx.restore();
+    }
+    
+    // 绘制数字
+    ctx.font = radius * 0.25 + 'px arial black';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    for (var i = 1; i <= 12; i++) {
+        var ang = i * 30 * Math.PI / 180;
+        var x = Math.sin(ang) * radius * 0.8;
+        var y = -Math.cos(ang) * radius * 0.8;
+        ctx.fillText(i.toString(), x, y);
+    }
+    
+    // 绘制指针
+    var now = new Date();
+    var h = now.getHours() % 12;
+    var m = now.getMinutes();
+    var s = now.getSeconds();
+    
+    // 时针
+    ctx.save();
+    var hAng = (h * 30 + m * 0.5) * Math.PI / 180;
+    ctx.rotate(hAng);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -radius * 0.5);
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#2c3e50';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    
+    // 分针
+    ctx.save();
+    var mAng = (m * 6 + s * 0.1) * Math.PI / 180;
+    ctx.rotate(mAng);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -radius * 0.8);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#2c3e50';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    
+    // 秒针
+    ctx.save();
+    var sAng = s * 6 * Math.PI / 180;
+    ctx.rotate(sAng);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, -radius * 0.9);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    
+    // 中心圆点
+    ctx.beginPath();
+    ctx.arc(0, 0, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = '#2c3e50';
+    ctx.fill();
+    
+    ctx.restore();
+}
 
-            function digitalclockTime()
-            {
-            var today = new Date();
+// ====================== 全屏功能 ======================
+function toggleFullscreen() {
+    var doc = document.documentElement;
+    if (!document.fullscreenElement) {
+        doc.requestFullscreen ? doc.requestFullscreen() :
+        doc.webkitRequestFullscreen ? doc.webkitRequestFullscreen() :
+        doc.msRequestFullscreen && doc.msRequestFullscreen();
+        document.getElementById('fullscreen-btn').innerText = '退出全屏';
+    } else {
+        document.exitFullscreen ? document.exitFullscreen() :
+        document.webkitExitFullscreen ? document.webkitExitFullscreen() :
+        document.msExitFullscreen && document.msExitFullscreen();
+        document.getElementById('fullscreen-btn').innerText = '全屏显示';
+    }
+}
 
-            var datestr = new Date().toDateString();
-            var todayarray=today.toString().split(" ");
+// ====================== 倒计时功能 - 支持重新设置 & 动态字体 ======================
+// 初始化时间选择器（仅显示当天未到的时间）
+function initTimeSelector() {
+    var now = new Date();
+    var currentHour = now.getHours();
+    var currentMinute = now.getMinutes();
+    
+    var hourSelect = document.getElementById('hour-select');
+    var minuteSelect = document.getElementById('minute-select');
+    
+    // 清空原有选项
+    hourSelect.innerHTML = '';
+    minuteSelect.innerHTML = '';
+    
+    // 填充小时选项（从当前小时开始到23点）
+    for (var h = currentHour; h < 24; h++) {
+        var option = document.createElement('option');
+        option.value = h;
+        option.text = fmt(h); // 选择器里正常显示补0的小时
+        hourSelect.appendChild(option);
+    }
+    
+    // 填充分钟选项（如果是当前小时，从下一分钟开始；否则从0开始）
+    var startMinute = (hourSelect.value == currentHour) ? currentMinute + 1 : 0;
+    for (var m = startMinute; m < 60; m++) {
+        var option = document.createElement('option');
+        option.value = m;
+        option.text = fmt(m);
+        minuteSelect.appendChild(option);
+    }
+    
+    // 监听小时变化，更新分钟选项
+    hourSelect.onchange = function() {
+        minuteSelect.innerHTML = '';
+        var selectedHour = parseInt(this.value);
+        var minStart = (selectedHour == currentHour) ? currentMinute + 1 : 0;
+        
+        for (var m = minStart; m < 60; m++) {
+            var option = document.createElement('option');
+            option.value = m;
+            option.text = fmt(m);
+            minuteSelect.appendChild(option);
+        }
+        
+        // 如果没有可选分钟，禁用确认按钮
+        if (minuteSelect.options.length === 0) {
+            document.getElementById('confirm').disabled = true;
+            alert('当前时段已无可用时间，请选择其他小时！');
+        } else {
+            document.getElementById('confirm').disabled = false;
+        }
+    };
+}
 
-            var tm=todayarray[4];//时间
-            var gt=todayarray[5];//时区
-            var tz=today.toString().split("(");
-            var hour=today.getHours();
-            var min=today.getMinutes();
-            if (min < 10) {min = "0"+min};
-            //write data to 3 div lines
-            document.getElementById('line1').innerHTML=todayarray[3]+" 年 "+(today.getMonth()+1)+" 月 "+todayarray[2]+" 日";
-            document.getElementById('line2').innerHTML=tm;
+// 打开倒计时设置弹窗（用于首次设置和重新设置）
+function openCountdownModal() {
+    // 停止当前倒计时（如果有）
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+        countdownState.timer = null;
+    }
+    
+    // 重置文本类型记录
+    countdownState.lastTextType = null;
+    
+    // 初始化选择器并打开弹窗
+    initTimeSelector();
+    document.getElementById('modal').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+}
 
-            }
-            function color() {
-              document.getElementById("line1").style.color=fg1[colorindex];
-              document.getElementById("line1").style.backgroundColor=bg1[colorindex];
-              document.getElementById("line2").style.color=fg1[colorindex];
-              document.getElementById("line2").style.backgroundColor=bg1[colorindex];
-              document.getElementById("clockcanvas").style.backgroundColor=bg1[colorindex];
-              document.body.style.background = bg1[colorindex];
-              
-            }
+// 打开倒计时功能（支持恢复之前的设置）
+function openCountdown() {
+    // 重置文本类型记录
+    countdownState.lastTextType = null;
+    
+    // 如果已有设置且目标时间未到，直接恢复倒计时界面
+    if (countdownState.isSet && countdownState.targetTime) {
+        var now = new Date();
+        if (countdownState.targetTime > now) {
+            showCountdownPage();
+            return;
+        } else {
+            // 目标时间已过，重置状态
+            countdownState.isSet = false;
+            countdownState.targetTime = null;
+        }
+    }
+    
+    // 无有效设置，打开设置弹窗
+    openCountdownModal();
+}
 
-            // 全屏切换
-            function toggleFullScreen() {
-                let element = document.documentElement;
-                let button = document.getElementById("fullscreen-button");
+// 验证并设置倒计时（仅当天未到的时间）
+function setCountdown() {
+    var hour = parseInt(document.getElementById('hour-select').value);
+    var minute = parseInt(document.getElementById('minute-select').value);
+    
+    // 创建目标时间（当天）
+    var now = new Date();
+    var targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+    
+    // 双重验证（防止异常）
+    if (targetTime <= now) {
+        alert('请选择今天还未到的时间！');
+        initTimeSelector(); // 重新初始化选择器
+        return;
+    }
+    
+    // 保存倒计时状态
+    countdownState.isSet = true;
+    countdownState.targetTime = targetTime;
+    
+    // 关闭弹窗，切换到倒计时页面
+    closeModal();
+    showCountdownPage();
+}
 
-                if (!document.fullscreenElement && !document.mozFullScreenElement &&
-                    !document.webkitFullscreenElement && !document.msFullscreenElement) {
-                    // 进入全屏
-                    if (element.requestFullscreen) {
-                        element.requestFullscreen();
-                    } else if (element.mozRequestFullScreen) {
-                        element.mozRequestFullScreen();
-                    } else if (element.webkitRequestFullscreen) {
-                        element.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
-                    } else if (element.msRequestFullscreen) {
-                        element.msRequestFullscreen();
-                    }
-                    button.innerText = "退出全屏";
-                    button.classList.add("hide");
-                } else {
-                    // 退出全屏
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    } else if (document.mozCancelFullScreen) {
-                        document.mozCancelFullScreen();
-                    } else if (document.webkitExitFullscreen) {
-                        document.webkitExitFullscreen();
-                    } else if (document.msExitFullscreen) {
-                        document.msExitFullscreen();
-                    }
-                    button.innerText = "全屏";
-                    button.classList.remove("hide");
-                }
-            }
+// 显示倒计时页面（支持恢复状态）
+function showCountdownPage() {
+    // 停止之前的定时器（如果有）
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+    }
+    
+    // 重置文本类型记录
+    countdownState.lastTextType = null;
+    
+    // 切换显示状态
+    document.getElementById('clock-wrap').style.display = 'none';
+    document.getElementById('countdown-wrap').style.display = 'flex'; // 改为flex显示
+    document.getElementById('countdown-btn').style.display = 'none';
+    document.getElementById('reset-countdown-btn').style.display = 'block'; // 显示重新设置按钮
+    document.getElementById('back-btn').style.display = 'block';
+    
+    // 格式化目标时间文本
+    var targetHour = fmt(countdownState.targetTime.getHours());
+    var targetMinute = fmt(countdownState.targetTime.getMinutes());
+    var targetStr = targetHour + ':' + targetMinute;
+    
+    // 更新标题：距离10:00还有（纯白色）
+    document.getElementById('countdown-title').innerText = '距离' + targetStr + '还有';
+    
+    // 启动倒计时
+    startCountdown();
+}
 
+// 返回时钟页面（保留倒计时状态）
+function backToClock() {
+    // 暂停倒计时（保留定时器引用）
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+    }
+    
+    // 切换显示状态
+    document.getElementById('countdown-wrap').style.display = 'none';
+    document.getElementById('clock-wrap').style.display = 'block';
+    document.getElementById('back-btn').style.display = 'none';
+    document.getElementById('reset-countdown-btn').style.display = 'none'; // 隐藏重新设置按钮
+    document.getElementById('countdown-btn').style.display = 'block';
+}
+
+// 启动倒计时（支持状态恢复 + 修复字体持续缩小问题）
+function startCountdown() {
+    // 启动新的定时器并保存引用
+    countdownState.timer = setInterval(function() {
+        var now = new Date();
+        var diff = countdownState.targetTime - now;
+        
+        if (diff <= 0) {
+            // 倒计时结束，重置状态
+            clearInterval(countdownState.timer);
+            countdownState.isSet = false;
+            countdownState.timer = null;
+            countdownState.lastTextType = null;
+            
+            const endText = '00 分 00 秒';
+            document.getElementById('countdown-show').innerText = endText;
+            adjustCountdownFontSize(endText); // 调整结束文本的字体
+            document.getElementById('countdown-title').innerText = '倒计时结束！';
+            document.getElementById('reset-countdown-btn').style.display = 'none'; // 倒计时结束隐藏重新设置
+            return;
+        }
+        
+        // 计算时分秒
+        var h = Math.floor(diff / 3600000);
+        var m = Math.floor((diff % 3600000) / 60000);
+        var s = Math.floor((diff % 60000) / 1000);
+        
+        // 最终显示逻辑：
+        // 1. 不足1小时：只显示分秒（XX分 XX秒）
+        // 2. 1-9小时：显示个位小时 + 分秒（9时 05分 30秒）
+        // 3. 10小时及以上：显示完整小时 + 分秒（10时 05分 30秒）
+        var displayText = '';
+        if (h > 0) {
+            // 小时使用专用格式化（不补0），分秒正常补0
+            displayText = fmt(h, 'hour') + '时' + fmt(m) + '分' + fmt(s) + '秒';
+        } else {
+            displayText = fmt(m) + '分 ' + fmt(s) + '秒';
+        }
+        
+        // 更新显示内容
+        document.getElementById('countdown-show').innerText = displayText;
+        // 动态调整字体大小（仅在文本类型变化时执行）
+        adjustCountdownFontSize(displayText);
+        
+    }, 1000);
+}
+
+// 监听窗口大小变化，重新调整字体（重置文本类型确保重新计算）
+window.addEventListener('resize', function() {
+    const showElement = document.getElementById('countdown-show');
+    const currentText = showElement.innerText;
+    if (currentText && currentText !== '00 分 00 秒') {
+        // 重置文本类型，强制重新计算
+        countdownState.lastTextType = null;
+        adjustCountdownFontSize(currentText);
+    }
+});
+
+// ====================== 事件绑定 & 初始化 ======================
+window.onload = function() {
+    // 初始化时钟
+    updateDigitalClock();
+    drawAnalogClock();
+    setInterval(updateDigitalClock, 1000);
+    setInterval(drawAnalogClock, 1000);
+    
+    // 初始化倒计时默认字体
+    adjustCountdownFontSize('00 分 00 秒');
+    
+    // 绑定按钮事件
+    document.getElementById('fullscreen-btn').onclick = toggleFullscreen;
+    document.getElementById('countdown-btn').onclick = openCountdown;
+    document.getElementById('reset-countdown-btn').onclick = openCountdownModal; // 重新设置倒计时
+    document.getElementById('back-btn').onclick = backToClock;
+    document.getElementById('confirm').onclick = setCountdown;
+    document.getElementById('cancel').onclick = closeModal;
+    document.getElementById('overlay').onclick = closeModal;
+};
 </script>
+</body>
 </html>
