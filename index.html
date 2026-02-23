@@ -89,61 +89,95 @@ html, body {
     text-align: center;
 }
 
-/* 滚轮选择器样式 */
+/* 自定义下拉选择器容器 - 核心样式 */
+.custom-select {
+    position: relative;
+    width: 80px;
+    height: 44px; /* 和原select高度一致 */
+    font-family: arial black, sans-serif;
+}
+
+/* 下拉触发按钮（替代原生select） */
+.select-trigger {
+    width: 100%;
+    height: 100%;
+    padding: 0 10px;
+    background-color: #34495e;
+    color: #ecf0f1;
+    font-size: 18px;
+    text-align: center; /* 文字绝对居中 */
+    line-height: 44px;
+    border-radius: 5px;
+    border: 2px solid #34495e;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    /* 彻底隐藏原生滚轮相关样式 */
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.select-trigger:hover {
+    background-color: #4a6580;
+    border-color: #4a6580;
+}
+
+/* 下拉选项列表 */
+.select-options {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    background-color: #2c3e50;
+    border-radius: 5px;
+    margin-top: 5px;
+    overflow-y: auto;
+    display: none;
+    z-index: 10001; /* 高于弹窗 */
+    /* 美化滚动条（仅保留极细的样式，避免突兀） */
+    scrollbar-width: thin;
+    scrollbar-color: #4a6580 #2c3e50;
+}
+
+/* 自定义滚动条（Chrome/Safari） */
+.select-options::-webkit-scrollbar {
+    width: 4px; /* 极细滚动条，几乎不可见 */
+}
+.select-options::-webkit-scrollbar-track {
+    background: #2c3e50;
+}
+.select-options::-webkit-scrollbar-thumb {
+    background-color: #4a6580;
+    border-radius: 2px;
+}
+
+/* 下拉选项 */
+.select-options div {
+    padding: 10px 0;
+    text-align: center;
+    color: #ecf0f1;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.select-options div:hover {
+    background-color: #34495e;
+}
+
+/* 选择器容器间距微调 */
 .time-selector {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     justify-content: center;
     margin-bottom: 25px;
 }
 
-.time-selector select {
-    width: 80px;
-    padding: 10px 8px; /* 调整内边距，避免文字贴边 */
-    font-size: 18px;
-    text-align: center; /* 核心：强制文字居中，解决小时靠右问题 */
-    text-align-last: center; /* 兼容Chrome等浏览器的下拉选中项居中 */
-    border-radius: 5px;
-    border: 2px solid #34495e; /* 增加边框层次感 */
-    background-color: #34495e;
-    color: #ecf0f1;
-    font-family: arial black, sans-serif;
-    /* 新增：美化下拉箭头，统一样式 */
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='%23ecf0f1'%3E%3Cpath d='M0 0l6 6 6-6z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center; /* 箭头位置微调 */
-    background-size: 12px;
-    /* 新增：hover/active状态美化 */
-    transition: all 0.2s ease;
-}
-
-/* 新增：下拉框hover/聚焦样式 */
-.time-selector select:hover {
-    border-color: #4a6580;
-    background-color: #4a6580;
-}
-
-.time-selector select:focus {
-    outline: none;
-    border-color: #27ae60; /* 聚焦时绿色边框，提示选中状态 */
-    box-shadow: 0 0 0 2px rgba(39, 174, 96, 0.2); /* 轻微发光效果 */
-}
-
-/* 兼容Firefox的下拉选中项居中 */
-@-moz-document url-prefix() {
-    .time-selector select {
-        text-align: left;
-        padding-left: 25px; /* Firefox下微调，保证视觉居中 */
-    }
-}
-
 .time-selector span {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: bold;
+    color: #f1c40f;
 }
 
 #modal button {
@@ -290,9 +324,21 @@ html, body {
 <div id="modal">
     <div class="modal-tip">请设置倒计时终点时间<br/>（例如现在14点，可选14点以后的时间）</div>
     <div class="time-selector">
-        <select id="hour-select"></select>
+        <!-- 小时选择器：模拟下拉容器 -->
+        <div class="custom-select">
+            <div class="select-trigger" id="hour-trigger">00</div>
+            <div class="select-options hour-options"></div>
+            <!-- 保留原select，仅隐藏 -->
+            <select id="hour-select" style="display: none;"></select>
+        </div>
         <span>:</span>
-        <select id="minute-select"></select>
+        <!-- 分钟选择器：模拟下拉容器 -->
+        <div class="custom-select">
+            <div class="select-trigger" id="minute-trigger">00</div>
+            <div class="select-options minute-options"></div>
+            <!-- 保留原select，仅隐藏 -->
+            <select id="minute-select" style="display: none;"></select>
+        </div>
     </div>
     <div style="text-align: center;">
         <button id="confirm">确认</button>
@@ -568,6 +614,11 @@ function initTimeSelector() {
         option.text = fmt(h); // 选择器里正常显示补0的小时
         hourSelect.appendChild(option);
     }
+
+    // --- 修复点1：设置小时默认选中第一项 ---
+    if (hourSelect.options.length > 0) {
+        hourSelect.selectedIndex = 0;
+    }
     
     // 填充分钟选项（如果是当前小时，从下一分钟开始；否则从0开始）
     var startMinute = (hourSelect.value == currentHour) ? currentMinute + 1 : 0;
@@ -576,6 +627,11 @@ function initTimeSelector() {
         option.value = m;
         option.text = fmt(m);
         minuteSelect.appendChild(option);
+    }
+
+    // --- 修复点2：设置分钟默认选中第一项 ---
+    if (minuteSelect.options.length > 0) {
+        minuteSelect.selectedIndex = 0;
     }
     
     // 监听小时变化，更新分钟选项
@@ -591,6 +647,11 @@ function initTimeSelector() {
             minuteSelect.appendChild(option);
         }
         
+        // 设置新的分钟默认选中第一项
+        if (minuteSelect.options.length > 0) {
+            minuteSelect.selectedIndex = 0;
+        }
+
         // 如果没有可选分钟，禁用确认按钮
         if (minuteSelect.options.length === 0) {
             document.getElementById('confirm').disabled = true;
@@ -599,6 +660,99 @@ function initTimeSelector() {
             document.getElementById('confirm').disabled = false;
         }
     };
+}
+
+// 初始化自定义下拉选择器
+function initCustomSelectors() {
+    const hourSelect = document.getElementById('hour-select');
+    const minuteSelect = document.getElementById('minute-select');
+    const hourTrigger = document.getElementById('hour-trigger');
+    const minuteTrigger = document.getElementById('minute-trigger');
+    const hourOptions = document.querySelector('.hour-options');
+    const minuteOptions = document.querySelector('.minute-options');
+
+    // 同步原生select到自定义触发按钮
+    function syncTrigger() {
+        // 增加容错：如果值为空，默认显示00
+        const hourVal = hourSelect.value !== null ? parseInt(hourSelect.value) : 0;
+        const minVal = minuteSelect.value !== null ? parseInt(minuteSelect.value) : 0;
+        
+        hourTrigger.innerText = fmt(hourVal);
+        minuteTrigger.innerText = fmt(minVal);
+    }
+
+    // 渲染自定义选项
+    function renderOptions(select, optionsContainer) {
+        optionsContainer.innerHTML = '';
+        for (let i = 0; i < select.options.length; i++) {
+            const option = document.createElement('div');
+            option.innerText = select.options[i].text;
+            option.dataset.value = select.options[i].value;
+            option.onclick = function() {
+                select.value = this.dataset.value;
+                syncTrigger();
+                optionsContainer.style.display = 'none';
+            };
+            optionsContainer.appendChild(option);
+        }
+    }
+
+    // 绑定触发按钮点击事件
+    hourTrigger.onclick = function(e) {
+        e.stopPropagation();
+        minuteOptions.style.display = 'none';
+        hourOptions.style.display = hourOptions.style.display === 'block' ? 'none' : 'block';
+        renderOptions(hourSelect, hourOptions);
+    };
+
+    minuteTrigger.onclick = function(e) {
+        e.stopPropagation();
+        hourOptions.style.display = 'none';
+        minuteOptions.style.display = minuteOptions.style.display === 'block' ? 'none' : 'block';
+        renderOptions(minuteSelect, minuteOptions);
+    };
+
+    // 点击页面其他区域关闭下拉
+    document.addEventListener('click', function() {
+        hourOptions.style.display = 'none';
+        minuteOptions.style.display = 'none';
+    });
+
+    // 监听原生select变化，同步到自定义触发按钮
+    hourSelect.onchange = function() {
+        // 保留原有逻辑
+        minuteSelect.innerHTML = '';
+        var selectedHour = parseInt(this.value);
+        var now = new Date();
+        var currentHour = now.getHours();
+        var currentMinute = now.getMinutes();
+        var minStart = (selectedHour == currentHour) ? currentMinute + 1 : 0;
+        
+        for (var m = minStart; m < 60; m++) {
+            var option = document.createElement('option');
+            option.value = m;
+            option.text = fmt(m);
+            minuteSelect.appendChild(option);
+        }
+
+        // 设置新的分钟默认选中第一项
+        if (minuteSelect.options.length > 0) {
+            minuteSelect.selectedIndex = 0;
+        }
+        
+        if (minuteSelect.options.length === 0) {
+            document.getElementById('confirm').disabled = true;
+            alert('当前时段已无可用时间，请选择其他小时！');
+        } else {
+            document.getElementById('confirm').disabled = false;
+        }
+        // 新增：同步自定义选择器
+        syncTrigger();
+        renderOptions(minuteSelect, minuteOptions);
+    };
+
+    // 初始化时同步
+    syncTrigger();
 }
 
 // 打开倒计时设置弹窗（用于首次设置和重新设置）
@@ -614,6 +768,8 @@ function openCountdownModal() {
     
     // 初始化选择器并打开弹窗
     initTimeSelector();
+    // 确保自定义选择器基于最新的原生select状态重新渲染
+    initCustomSelectors();
     document.getElementById('modal').style.display = 'block';
     document.getElementById('overlay').style.display = 'block';
 }
@@ -623,17 +779,20 @@ function openCountdown() {
     // 重置文本类型记录
     countdownState.lastTextType = null;
     
-    // 如果已有设置且目标时间未到，直接恢复倒计时界面
+    // 优化：先清除过期的状态
     if (countdownState.isSet && countdownState.targetTime) {
         var now = new Date();
-        if (countdownState.targetTime > now) {
-            showCountdownPage();
-            return;
-        } else {
-            // 目标时间已过，重置状态
+        // 如果目标时间已过，直接重置状态，不再复用
+        if (countdownState.targetTime <= now) {
             countdownState.isSet = false;
             countdownState.targetTime = null;
         }
+    }
+    
+    // 如果已有有效设置，直接恢复；否则打开弹窗
+    if (countdownState.isSet && countdownState.targetTime) {
+        showCountdownPage();
+        return;
     }
     
     // 无有效设置，打开设置弹窗
@@ -652,7 +811,8 @@ function setCountdown() {
     // 双重验证（防止异常）
     if (targetTime <= now) {
         alert('请选择今天还未到的时间！');
-        initTimeSelector(); // 重新初始化选择器
+        initTimeSelector();
+        initCustomSelectors(); // 重新同步
         return;
     }
     
@@ -711,6 +871,12 @@ function backToClock() {
 
 // 启动倒计时（支持状态恢复 + 修复字体持续缩小问题）
 function startCountdown() {
+    // 新增：先清除已有定时器，避免重复创建
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+        countdownState.timer = null;
+    }
+    
     // 启动新的定时器并保存引用
     countdownState.timer = setInterval(function() {
         var now = new Date();
@@ -727,7 +893,8 @@ function startCountdown() {
             document.getElementById('countdown-show').innerText = endText;
             adjustCountdownFontSize(endText); // 调整结束文本的字体
             document.getElementById('countdown-title').innerText = '倒计时结束！';
-            document.getElementById('reset-countdown-btn').style.display = 'none'; // 倒计时结束隐藏重新设置
+            // 优化：不隐藏重新设置按钮
+            document.getElementById('reset-countdown-btn').style.display = 'block'; 
             return;
         }
         
