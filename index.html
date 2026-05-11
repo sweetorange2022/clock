@@ -51,16 +51,30 @@ html, body {
 }
 
 #countdown-btn {
-    top: 70px; /* 第二个按钮：全屏按钮下方（间距50px） */
+    top: 70px;
+}
+
+#stopwatch-btn {
+    top: 120px;
 }
 
 #reset-countdown-btn {
-    top: 120px; /* 第三个按钮：倒计时按钮下方 */
-    display: none; /* 默认隐藏，倒计时界面显示 */
+    top: 220px;
+    display: none;
 }
 
 #back-btn {
-    top: 70px; /* 和倒计时按钮同位置 */
+    top: 170px;
+    display: none;
+}
+
+#sw-start-pause-btn {
+    top: 220px;
+    display: none;
+}
+
+#sw-reset-btn {
+    top: 270px;
     display: none;
 }
 
@@ -76,7 +90,7 @@ html, body {
     z-index: 10000;
     display: none;
     color: #ecf0f1;
-    max-width: 350px;
+    max-width: 400px;
     width: 90%;
 }
 
@@ -163,6 +177,46 @@ html, body {
 
 .select-options div:hover {
     background-color: #34495e;
+}
+
+/* 日期行 */
+.date-selector-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 18px;
+    font-size: 14px;
+    color: #ecf0f1;
+}
+
+.date-selector-row label {
+    font-family: arial black, sans-serif;
+}
+
+#date-mode-select,
+#custom-date-input {
+    padding: 8px 10px;
+    border-radius: 5px;
+    border: 2px solid #34495e;
+    background-color: #34495e;
+    color: #ecf0f1;
+    font-family: arial black, sans-serif;
+    font-size: 14px;
+}
+
+#custom-date-input {
+    min-height: 40px;
+}
+
+#modal-error {
+    display: none;
+    font-size: 13px;
+    color: #e74c3c;
+    text-align: center;
+    margin-bottom: 12px;
+    line-height: 1.4;
 }
 
 /* 选择器容器间距微调 */
@@ -261,7 +315,6 @@ html, body {
     color: #ecf0f1;
     font-family: arial black, sans-serif;
     display: none;
-    display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
@@ -316,13 +369,27 @@ html, body {
 <!-- 功能按钮 - 右侧垂直排列（统一尺寸） -->
 <button id="fullscreen-btn" class="btn">全屏显示</button>
 <button id="countdown-btn" class="btn">倒计时</button>
+<button id="stopwatch-btn" class="btn">秒表</button>
 <button id="reset-countdown-btn" class="btn">重新设置</button>
 <button id="back-btn" class="btn">返回时钟</button>
+<button id="sw-start-pause-btn" class="btn">开始</button>
+<button id="sw-reset-btn" class="btn">归零</button>
 
 <!-- 弹窗 - 增加提示文字 -->
 <div id="overlay"></div>
 <div id="modal">
-    <div class="modal-tip">请设置倒计时终点时间<br/>（例如现在14点，可选14点以后的时间）</div>
+    <div class="modal-tip">请选择日期与终点时刻<br/>（今天仅显示当前时刻之后的选项；明天 / 后天 / 指定日期可选当天任意时刻）</div>
+    <div class="date-selector-row">
+        <label for="date-mode-select">日期</label>
+        <select id="date-mode-select">
+            <option value="today">今天</option>
+            <option value="tomorrow">明天</option>
+            <option value="dayafter">后天</option>
+            <option value="custom">指定日期</option>
+        </select>
+        <input type="date" id="custom-date-input" />
+    </div>
+    <div id="modal-error"></div>
     <div class="time-selector">
         <!-- 小时选择器：模拟下拉容器 -->
         <div class="custom-select">
@@ -358,102 +425,177 @@ html, body {
 <!-- 倒计时区域 - 简化显示 -->
 <div id="countdown-wrap">
     <div id="countdown-title">距离目标时间还有</div>
-    <div id="countdown-show">00 分 00 秒</div>
+    <div id="countdown-show">00分 00秒</div>
     <div id="countdown-tip">目标时间：--:--</div>
 </div>
 
 <!-- JS代码放在最后 -->
 <script>
-// ====================== 全局状态管理 ======================
-// 保存倒计时状态，实现返回后恢复
+// ====================== 全局状态 ======================
+var WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
 var countdownState = {
-    isSet: false,       // 是否已设置过倒计时
-    targetTime: null,   // 目标时间
-    timer: null,        // 倒计时定时器
-    lastTextType: null  // 记录上一次的文本类型（用于避免重复调整字体）
+    isSet: false,
+    targetTime: null,
+    timer: null,
+    lastTextType: null
 };
 
-// ====================== 基础工具函数 ======================
-// 格式化时间（优化：不足10小时不补0，分钟/秒正常补0）
-function fmt(num, type = 'normal') {
-    // type: normal-正常补0（分/秒）, hour-小时专用（不足10不补0）
+var countdownModalContext = {
+    targetCalendarDayStart: null,
+    isTargetToday: false
+};
+
+var stopwatchState = {
+    running: false,
+    baseMs: 0,
+    tickAt: null,
+    timer: null,
+    lastTextType: null
+};
+
+var customSelectControlsReady = false;
+
+function pad2(n) {
+    return n < 10 ? '0' + n : String(n);
+}
+
+function toYMD(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function startOfLocalDay(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function sameLocalDay(a, b) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() &&
+        a.getDate() === b.getDate();
+}
+
+function addLocalDays(d, n) {
+    var base = startOfLocalDay(d);
+    return new Date(base.getFullYear(), base.getMonth(), base.getDate() + n);
+}
+
+function fmt(num, type) {
+    type = type || 'normal';
     if (type === 'hour') {
-        return num.toString(); // 小时直接返回数字，不补0
+        return num.toString();
     }
     return num < 10 ? '0' + num : num;
 }
 
-// 关闭弹窗
+function showModalError(msg) {
+    var el = document.getElementById('modal-error');
+    el.innerText = msg;
+    el.style.display = 'block';
+}
+
+function clearModalError() {
+    var el = document.getElementById('modal-error');
+    el.innerText = '';
+    el.style.display = 'none';
+}
+
 function closeModal() {
     document.getElementById('modal').style.display = 'none';
     document.getElementById('overlay').style.display = 'none';
+    clearModalError();
 }
 
-/**
- * 获取文本类型（用于判断是否需要调整字体）
- * @param {string} text - 倒计时文本
- * @returns {string} 文本类型：short(仅分秒)、medium(个位数小时)、long(两位数小时)
- */
+function updateCustomDateVisibility() {
+    var custom = document.getElementById('date-mode-select').value === 'custom';
+    var input = document.getElementById('custom-date-input');
+    input.style.display = custom ? 'inline-block' : 'none';
+}
+
 function getTextType(text) {
-    const textLength = text.length;
-    if (textLength <= 7) { // 仅分秒（如45分 10秒）
-        return 'short';
-    } else if (textLength <= 8) { // 个位数小时（如9时 05分 30秒）
-        return 'medium';
-    } else { // 两位数小时（如10时 05分 30秒）
-        return 'long';
+    if (text.indexOf('天') !== -1) {
+        return 'day';
     }
+    var textLength = text.length;
+    if (textLength <= 7) {
+        return 'short';
+    }
+    if (textLength <= 8) {
+        return 'medium';
+    }
+    return 'long';
 }
 
-/**
- * 动态调整倒计时字体大小（仅在文本类型变化时调整）
- * @param {string} text - 要显示的倒计时文本
- */
-function adjustCountdownFontSize(text) {
-    const showElement = document.getElementById('countdown-show');
-    const screenWidth = window.innerWidth;
-    const textType = getTextType(text);
-    
-    // 如果文本类型没有变化，不重复调整字体
-    if (textType === countdownState.lastTextType) {
+function adjustCountdownFontSize(text, typeHolder) {
+    typeHolder = typeHolder || countdownState;
+    var showElement = document.getElementById('countdown-show');
+    var screenWidth = window.innerWidth;
+    var textType = getTextType(text);
+    if (textType === typeHolder.lastTextType) {
         return;
     }
-    
-    // 更新最后一次的文本类型
-    countdownState.lastTextType = textType;
-    
-    // 先恢复基础字体大小（避免累积缩小）
-    let baseFontSize;
+    typeHolder.lastTextType = textType;
+    var baseFontSize;
     if (screenWidth <= 480) {
-        baseFontSize = 13; // 从14改为13，同步CSS的小屏基础值
+        baseFontSize = 13;
     } else if (screenWidth >= 1200) {
-        baseFontSize = 17; // 从18改为17，同步CSS的大屏基础值
+        baseFontSize = 17;
     } else {
-        baseFontSize = 15; // 从16改为15，同步CSS的普通屏基础值
+        baseFontSize = 15;
     }
-    
-    // 根据文本类型调整缩放比例
-    let fontSizeScale = 1;
-    switch(textType) {
-        case 'medium': // 个位数小时
+    var fontSizeScale = 1;
+    switch (textType) {
+        case 'day':
+            fontSizeScale = screenWidth <= 480 ? 0.55 : 0.65;
+            break;
+        case 'medium':
             fontSizeScale = screenWidth <= 480 ? 0.85 : 0.9;
             break;
-        case 'long': // 两位数小时
+        case 'long':
             fontSizeScale = screenWidth <= 480 ? 0.7 : 0.8;
             break;
-        case 'short': // 仅分秒，默认100%
+        case 'short':
         default:
             fontSizeScale = 1;
             break;
     }
-    
-    // 设置最终字体大小（使用vw单位，避免像素累积问题）
-    const finalFontSize = baseFontSize * fontSizeScale;
-    showElement.style.fontSize = finalFontSize + 'vw';
+    showElement.style.fontSize = (baseFontSize * fontSizeScale) + 'vw';
 }
 
-// ====================== 时钟功能 ======================
-// 更新数字时钟
+function formatTargetTitleDate(dt) {
+    var wd = WEEKDAYS[dt.getDay()];
+    var y = dt.getFullYear();
+    var mo = fmt(dt.getMonth() + 1);
+    var da = fmt(dt.getDate());
+    var hh = fmt(dt.getHours());
+    var mm = fmt(dt.getMinutes());
+    return y + '年' + mo + '月' + da + '日 ' + wd + ' ' + hh + ':' + mm;
+}
+
+function formatDurationParts(diffMs) {
+    var totalSec = Math.max(0, Math.floor(diffMs / 1000));
+    var d = Math.floor(totalSec / 86400);
+    var rem = totalSec % 86400;
+    var h = Math.floor(rem / 3600);
+    var m = Math.floor((rem % 3600) / 60);
+    var s = rem % 60;
+    return {d: d, h: h, m: m, s: s};
+}
+
+function formatCountdownDisplay(diffMs) {
+    var p = formatDurationParts(diffMs);
+    if (p.d > 0) {
+        return p.d + '天' + fmt(p.h, 'hour') + '时' + fmt(p.m) + '分' + fmt(p.s) + '秒';
+    }
+    if (p.h > 0) {
+        return fmt(p.h, 'hour') + '时' + fmt(p.m) + '分' + fmt(p.s) + '秒';
+    }
+    return fmt(p.m) + '分 ' + fmt(p.s) + '秒';
+}
+
+function formatElapsed(ms) {
+    return formatCountdownDisplay(ms);
+}
+
+// ====================== 时钟 ======================
 function updateDigitalClock() {
     var now = new Date();
     var year = now.getFullYear();
@@ -462,32 +604,25 @@ function updateDigitalClock() {
     var hh = fmt(now.getHours());
     var mm = fmt(now.getMinutes());
     var ss = fmt(now.getSeconds());
-    
-    document.getElementById('line1').innerText = year + ' 年 ' + month + ' 月 ' + day + ' 日';
+    document.getElementById('line1').innerText =
+        year + ' 年 ' + month + ' 月 ' + day + ' 日 ' + WEEKDAYS[now.getDay()];
     document.getElementById('line2').innerText = hh + ':' + mm + ':' + ss;
 }
 
-// 绘制模拟时钟
 function drawAnalogClock() {
     var canvas = document.getElementById('clockcanvas');
     var ctx = canvas.getContext('2d');
     var radius = canvas.height / 2;
-    
-    // 清除画布
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
     ctx.translate(radius, radius);
     radius = radius * 0.8;
-
-    // 绘制表盘
     ctx.beginPath();
     ctx.arc(0, 0, radius, 0, 2 * Math.PI);
     ctx.fillStyle = 'white';
     ctx.fill();
-    
-    // 绘制刻度
-    // 小时刻度
-    for (var i = 0; i < 12; i++) {
+    var i;
+    for (i = 0; i < 12; i++) {
         ctx.save();
         ctx.rotate(i * 30 * Math.PI / 180);
         ctx.beginPath();
@@ -498,9 +633,7 @@ function drawAnalogClock() {
         ctx.stroke();
         ctx.restore();
     }
-    
-    // 分钟刻度
-    for (var i = 0; i < 60; i++) {
+    for (i = 0; i < 60; i++) {
         ctx.save();
         ctx.rotate(i * 6 * Math.PI / 180);
         ctx.beginPath();
@@ -511,25 +644,19 @@ function drawAnalogClock() {
         ctx.stroke();
         ctx.restore();
     }
-    
-    // 绘制数字
     ctx.font = radius * 0.25 + 'px arial black';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    for (var i = 1; i <= 12; i++) {
+    for (i = 1; i <= 12; i++) {
         var ang = i * 30 * Math.PI / 180;
         var x = Math.sin(ang) * radius * 0.8;
         var y = -Math.cos(ang) * radius * 0.8;
         ctx.fillText(i.toString(), x, y);
     }
-    
-    // 绘制指针
     var now = new Date();
     var h = now.getHours() % 12;
     var m = now.getMinutes();
     var s = now.getSeconds();
-    
-    // 时针
     ctx.save();
     var hAng = (h * 30 + m * 0.5) * Math.PI / 180;
     ctx.rotate(hAng);
@@ -541,8 +668,6 @@ function drawAnalogClock() {
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
-    
-    // 分针
     ctx.save();
     var mAng = (m * 6 + s * 0.1) * Math.PI / 180;
     ctx.rotate(mAng);
@@ -554,8 +679,6 @@ function drawAnalogClock() {
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
-    
-    // 秒针
     ctx.save();
     var sAng = s * 6 * Math.PI / 180;
     ctx.rotate(sAng);
@@ -567,17 +690,19 @@ function drawAnalogClock() {
     ctx.lineCap = 'round';
     ctx.stroke();
     ctx.restore();
-    
-    // 中心圆点
     ctx.beginPath();
     ctx.arc(0, 0, 8, 0, 2 * Math.PI);
     ctx.fillStyle = '#2c3e50';
     ctx.fill();
-    
     ctx.restore();
 }
 
-// ====================== 全屏功能 ======================
+function clockTick() {
+    updateDigitalClock();
+    drawAnalogClock();
+}
+
+// ====================== 全屏 ======================
 function toggleFullscreen() {
     var doc = document.documentElement;
     if (!document.fullscreenElement) {
@@ -593,363 +718,456 @@ function toggleFullscreen() {
     }
 }
 
-// ====================== 倒计时功能 - 支持重新设置 & 动态字体 ======================
-// 初始化时间选择器（仅显示当天未到的时间）
-function initTimeSelector() {
+// ====================== 倒计时弹窗 ======================
+function resolveModalTargetDayStart() {
     var now = new Date();
-    var currentHour = now.getHours();
-    var currentMinute = now.getMinutes();
-    
-    var hourSelect = document.getElementById('hour-select');
-    var minuteSelect = document.getElementById('minute-select');
-    
-    // 清空原有选项
-    hourSelect.innerHTML = '';
-    minuteSelect.innerHTML = '';
-    
-    // 填充小时选项（从当前小时开始到23点）
-    for (var h = currentHour; h < 24; h++) {
-        var option = document.createElement('option');
-        option.value = h;
-        option.text = fmt(h); // 选择器里正常显示补0的小时
-        hourSelect.appendChild(option);
+    var mode = document.getElementById('date-mode-select').value;
+    if (mode === 'today') {
+        return startOfLocalDay(now);
     }
+    if (mode === 'tomorrow') {
+        return addLocalDays(now, 1);
+    }
+    if (mode === 'dayafter') {
+        return addLocalDays(now, 2);
+    }
+    var v = document.getElementById('custom-date-input').value;
+    if (!v) {
+        return null;
+    }
+    var parts = v.split('-');
+    return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+}
 
-    // --- 修复点1：设置小时默认选中第一项 ---
-    if (hourSelect.options.length > 0) {
-        hourSelect.selectedIndex = 0;
+function rebuildMinuteOptions() {
+    var now = new Date();
+    var minuteSelect = document.getElementById('minute-select');
+    var hourSelect = document.getElementById('hour-select');
+    minuteSelect.innerHTML = '';
+    var selectedHour = parseInt(hourSelect.value, 10);
+    if (isNaN(selectedHour)) {
+        document.getElementById('confirm').disabled = true;
+        return;
     }
-    
-    // 填充分钟选项（如果是当前小时，从下一分钟开始；否则从0开始）
-    var startMinute = (hourSelect.value == currentHour) ? currentMinute + 1 : 0;
-    for (var m = startMinute; m < 60; m++) {
+    var minStart;
+    if (countdownModalContext.isTargetToday && selectedHour === now.getHours()) {
+        minStart = now.getMinutes() + 1;
+    } else {
+        minStart = 0;
+    }
+    var m;
+    for (m = minStart; m < 60; m++) {
         var option = document.createElement('option');
         option.value = m;
         option.text = fmt(m);
         minuteSelect.appendChild(option);
     }
-
-    // --- 修复点2：设置分钟默认选中第一项 ---
-    if (minuteSelect.options.length > 0) {
+    if (minuteSelect.options.length === 0) {
+        document.getElementById('confirm').disabled = true;
+        showModalError('当前时段没有可选的分钟，请更换日期或小时。');
+    } else {
+        document.getElementById('confirm').disabled = false;
+        clearModalError();
         minuteSelect.selectedIndex = 0;
     }
-    
-    // 监听小时变化，更新分钟选项
-    hourSelect.onchange = function() {
-        minuteSelect.innerHTML = '';
-        var selectedHour = parseInt(this.value);
-        var minStart = (selectedHour == currentHour) ? currentMinute + 1 : 0;
-        
-        for (var m = minStart; m < 60; m++) {
-            var option = document.createElement('option');
-            option.value = m;
-            option.text = fmt(m);
-            minuteSelect.appendChild(option);
-        }
-        
-        // 设置新的分钟默认选中第一项
-        if (minuteSelect.options.length > 0) {
-            minuteSelect.selectedIndex = 0;
-        }
-
-        // 如果没有可选分钟，禁用确认按钮
-        if (minuteSelect.options.length === 0) {
-            document.getElementById('confirm').disabled = true;
-            alert('当前时段已无可用时间，请选择其他小时！');
-        } else {
-            document.getElementById('confirm').disabled = false;
-        }
-    };
 }
 
-// 初始化自定义下拉选择器
-function initCustomSelectors() {
-    const hourSelect = document.getElementById('hour-select');
-    const minuteSelect = document.getElementById('minute-select');
-    const hourTrigger = document.getElementById('hour-trigger');
-    const minuteTrigger = document.getElementById('minute-trigger');
-    const hourOptions = document.querySelector('.hour-options');
-    const minuteOptions = document.querySelector('.minute-options');
-
-    // 同步原生select到自定义触发按钮
-    function syncTrigger() {
-        // 增加容错：如果值为空，默认显示00
-        const hourVal = hourSelect.value !== null ? parseInt(hourSelect.value) : 0;
-        const minVal = minuteSelect.value !== null ? parseInt(minuteSelect.value) : 0;
-        
-        hourTrigger.innerText = fmt(hourVal);
-        minuteTrigger.innerText = fmt(minVal);
+function rebuildHourOptions() {
+    var now = new Date();
+    var hourSelect = document.getElementById('hour-select');
+    var minuteSelect = document.getElementById('minute-select');
+    hourSelect.innerHTML = '';
+    var hStart = countdownModalContext.isTargetToday ? now.getHours() : 0;
+    var h;
+    for (h = hStart; h < 24; h++) {
+        var option = document.createElement('option');
+        option.value = h;
+        option.text = fmt(h);
+        hourSelect.appendChild(option);
     }
+    if (hourSelect.options.length === 0) {
+        minuteSelect.innerHTML = '';
+        document.getElementById('confirm').disabled = true;
+        showModalError('没有可选的小时，请选择更晚的日期。');
+        return false;
+    }
+    hourSelect.selectedIndex = 0;
+    return true;
+}
 
-    // 渲染自定义选项
-    function renderOptions(select, optionsContainer) {
-        optionsContainer.innerHTML = '';
-        for (let i = 0; i < select.options.length; i++) {
-            const option = document.createElement('div');
-            option.innerText = select.options[i].text;
-            option.dataset.value = select.options[i].value;
-            option.onclick = function() {
-                select.value = this.dataset.value;
-                syncTrigger();
+function initTimeSelector() {
+    clearModalError();
+    document.getElementById('confirm').disabled = false;
+    var dayStart = resolveModalTargetDayStart();
+    if (!dayStart) {
+        countdownModalContext.targetCalendarDayStart = null;
+        document.getElementById('confirm').disabled = true;
+        showModalError('请选择具体日期。');
+        return;
+    }
+    var now = new Date();
+    countdownModalContext.targetCalendarDayStart = dayStart;
+    countdownModalContext.isTargetToday = sameLocalDay(dayStart, now);
+    if (!rebuildHourOptions()) {
+        return;
+    }
+    rebuildMinuteOptions();
+    syncCustomSelectTriggers();
+    closeCustomDropdowns();
+}
+
+function closeCustomDropdowns() {
+    var ho = document.querySelector('.hour-options');
+    var mo = document.querySelector('.minute-options');
+    if (ho) ho.style.display = 'none';
+    if (mo) mo.style.display = 'none';
+}
+
+function onDocumentCloseDropdowns() {
+    closeCustomDropdowns();
+}
+
+function syncCustomSelectTriggers() {
+    var hourSelect = document.getElementById('hour-select');
+    var minuteSelect = document.getElementById('minute-select');
+    var hourTrigger = document.getElementById('hour-trigger');
+    var minuteTrigger = document.getElementById('minute-trigger');
+    var hourVal = hourSelect.value !== '' ? parseInt(hourSelect.value, 10) : 0;
+    var minVal = minuteSelect.value !== '' ? parseInt(minuteSelect.value, 10) : 0;
+    if (isNaN(hourVal)) hourVal = 0;
+    if (isNaN(minVal)) minVal = 0;
+    hourTrigger.innerText = fmt(hourVal);
+    minuteTrigger.innerText = fmt(minVal);
+}
+
+function renderCustomOptions(select, optionsContainer) {
+    optionsContainer.innerHTML = '';
+    var i;
+    for (i = 0; i < select.options.length; i++) {
+        var option = document.createElement('div');
+        option.innerText = select.options[i].text;
+        option.dataset.value = select.options[i].value;
+        option.onclick = function(ev) {
+            ev.stopPropagation();
+            select.value = this.dataset.value;
+            if (select.id === 'hour-select') {
+                select.dispatchEvent(new Event('change'));
+            } else {
+                syncCustomSelectTriggers();
                 optionsContainer.style.display = 'none';
-            };
-            optionsContainer.appendChild(option);
-        }
+            }
+        };
+        optionsContainer.appendChild(option);
     }
+}
 
-    // 绑定触发按钮点击事件
+function handleHourSelectChange() {
+    rebuildMinuteOptions();
+    syncCustomSelectTriggers();
+    var minuteOptions = document.querySelector('.minute-options');
+    var minuteSelect = document.getElementById('minute-select');
+    renderCustomOptions(minuteSelect, minuteOptions);
+}
+
+function initCustomSelectControlsOnce() {
+    if (customSelectControlsReady) {
+        return;
+    }
+    customSelectControlsReady = true;
+    var hourSelect = document.getElementById('hour-select');
+    var minuteSelect = document.getElementById('minute-select');
+    var hourTrigger = document.getElementById('hour-trigger');
+    var minuteTrigger = document.getElementById('minute-trigger');
+    var hourOptions = document.querySelector('.hour-options');
+    var minuteOptions = document.querySelector('.minute-options');
+    hourSelect.addEventListener('change', handleHourSelectChange);
     hourTrigger.onclick = function(e) {
         e.stopPropagation();
         minuteOptions.style.display = 'none';
         hourOptions.style.display = hourOptions.style.display === 'block' ? 'none' : 'block';
-        renderOptions(hourSelect, hourOptions);
+        renderCustomOptions(hourSelect, hourOptions);
     };
-
     minuteTrigger.onclick = function(e) {
         e.stopPropagation();
         hourOptions.style.display = 'none';
         minuteOptions.style.display = minuteOptions.style.display === 'block' ? 'none' : 'block';
-        renderOptions(minuteSelect, minuteOptions);
+        renderCustomOptions(minuteSelect, minuteOptions);
     };
-
-    // 点击页面其他区域关闭下拉
-    document.addEventListener('click', function() {
-        hourOptions.style.display = 'none';
-        minuteOptions.style.display = 'none';
-    });
-
-    // 监听原生select变化，同步到自定义触发按钮
-    hourSelect.onchange = function() {
-        // 保留原有逻辑
-        minuteSelect.innerHTML = '';
-        var selectedHour = parseInt(this.value);
-        var now = new Date();
-        var currentHour = now.getHours();
-        var currentMinute = now.getMinutes();
-        var minStart = (selectedHour == currentHour) ? currentMinute + 1 : 0;
-        
-        for (var m = minStart; m < 60; m++) {
-            var option = document.createElement('option');
-            option.value = m;
-            option.text = fmt(m);
-            minuteSelect.appendChild(option);
-        }
-
-        // 设置新的分钟默认选中第一项
-        if (minuteSelect.options.length > 0) {
-            minuteSelect.selectedIndex = 0;
-        }
-        
-        if (minuteSelect.options.length === 0) {
-            document.getElementById('confirm').disabled = true;
-            alert('当前时段已无可用时间，请选择其他小时！');
-        } else {
-            document.getElementById('confirm').disabled = false;
-        }
-        // 新增：同步自定义选择器
-        syncTrigger();
-        renderOptions(minuteSelect, minuteOptions);
-    };
-
-    // 初始化时同步
-    syncTrigger();
+    document.addEventListener('click', onDocumentCloseDropdowns);
 }
 
-// 打开倒计时设置弹窗（用于首次设置和重新设置）
+function refreshCustomSelectUiAfterModalDataChange() {
+    syncCustomSelectTriggers();
+    closeCustomDropdowns();
+}
+
 function openCountdownModal() {
-    // 停止当前倒计时（如果有）
     if (countdownState.timer) {
         clearInterval(countdownState.timer);
         countdownState.timer = null;
     }
-    
-    // 重置文本类型记录
     countdownState.lastTextType = null;
-    
-    // 初始化选择器并打开弹窗
     initTimeSelector();
-    // 确保自定义选择器基于最新的原生select状态重新渲染
-    initCustomSelectors();
+    initCustomSelectControlsOnce();
+    refreshCustomSelectUiAfterModalDataChange();
     document.getElementById('modal').style.display = 'block';
     document.getElementById('overlay').style.display = 'block';
 }
 
-// 打开倒计时功能（支持恢复之前的设置）
 function openCountdown() {
-    // 重置文本类型记录
+    pauseStopwatchOnLeave();
     countdownState.lastTextType = null;
-    
-    // 优化：先清除过期的状态
     if (countdownState.isSet && countdownState.targetTime) {
         var now = new Date();
-        // 如果目标时间已过，直接重置状态，不再复用
         if (countdownState.targetTime <= now) {
             countdownState.isSet = false;
             countdownState.targetTime = null;
         }
     }
-    
-    // 如果已有有效设置，直接恢复；否则打开弹窗
     if (countdownState.isSet && countdownState.targetTime) {
         showCountdownPage();
         return;
     }
-    
-    // 无有效设置，打开设置弹窗
     openCountdownModal();
 }
 
-// 验证并设置倒计时（仅当天未到的时间）
 function setCountdown() {
-    var hour = parseInt(document.getElementById('hour-select').value);
-    var minute = parseInt(document.getElementById('minute-select').value);
-    
-    // 创建目标时间（当天）
-    var now = new Date();
-    var targetTime = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
-    
-    // 双重验证（防止异常）
-    if (targetTime <= now) {
-        alert('请选择今天还未到的时间！');
-        initTimeSelector();
-        initCustomSelectors(); // 重新同步
+    var dayStart = countdownModalContext.targetCalendarDayStart;
+    if (!dayStart) {
+        showModalError('日期无效，请重新选择。');
         return;
     }
-    
-    // 保存倒计时状态
+    var hour = parseInt(document.getElementById('hour-select').value, 10);
+    var minute = parseInt(document.getElementById('minute-select').value, 10);
+    if (isNaN(hour) || isNaN(minute)) {
+        showModalError('请选择有效的时间。');
+        return;
+    }
+    var targetTime = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), hour, minute, 0, 0);
+    var now = new Date();
+    if (targetTime <= now) {
+        showModalError('目标时间须晚于当前时间，请重新选择。');
+        return;
+    }
+    clearModalError();
     countdownState.isSet = true;
     countdownState.targetTime = targetTime;
-    
-    // 关闭弹窗，切换到倒计时页面
     closeModal();
     showCountdownPage();
 }
 
-// 显示倒计时页面（支持恢复状态）
 function showCountdownPage() {
-    // 停止之前的定时器（如果有）
     if (countdownState.timer) {
         clearInterval(countdownState.timer);
     }
-    
-    // 重置文本类型记录
     countdownState.lastTextType = null;
-    
-    // 切换显示状态
     document.getElementById('clock-wrap').style.display = 'none';
-    document.getElementById('countdown-wrap').style.display = 'flex'; // 改为flex显示
+    document.getElementById('countdown-wrap').style.display = 'flex';
     document.getElementById('countdown-btn').style.display = 'none';
-    document.getElementById('reset-countdown-btn').style.display = 'block'; // 显示重新设置按钮
+    document.getElementById('stopwatch-btn').style.display = 'none';
+    document.getElementById('reset-countdown-btn').style.display = 'block';
     document.getElementById('back-btn').style.display = 'block';
-    
-    // 格式化目标时间文本
-    var targetHour = fmt(countdownState.targetTime.getHours());
-    var targetMinute = fmt(countdownState.targetTime.getMinutes());
-    var targetStr = targetHour + ':' + targetMinute;
-    
-    // 更新标题：距离10:00还有（纯白色）
-    document.getElementById('countdown-title').innerText = '距离' + targetStr + '还有';
-    
-    // 启动倒计时
+    document.getElementById('sw-start-pause-btn').style.display = 'none';
+    document.getElementById('sw-reset-btn').style.display = 'none';
+    document.getElementById('countdown-title').innerText =
+        '距离' + formatTargetTitleDate(countdownState.targetTime) + '还有';
     startCountdown();
 }
 
-// 返回时钟页面（保留倒计时状态）
 function backToClock() {
-    // 暂停倒计时（保留定时器引用）
-    if (countdownState.timer) {
-        clearInterval(countdownState.timer);
-    }
-    
-    // 切换显示状态
-    document.getElementById('countdown-wrap').style.display = 'none';
-    document.getElementById('clock-wrap').style.display = 'block';
-    document.getElementById('back-btn').style.display = 'none';
-    document.getElementById('reset-countdown-btn').style.display = 'none'; // 隐藏重新设置按钮
-    document.getElementById('countdown-btn').style.display = 'block';
-}
-
-// 启动倒计时（支持状态恢复 + 修复字体持续缩小问题）
-function startCountdown() {
-    // 新增：先清除已有定时器，避免重复创建
     if (countdownState.timer) {
         clearInterval(countdownState.timer);
         countdownState.timer = null;
     }
-    
-    // 启动新的定时器并保存引用
+    pauseStopwatchOnLeave();
+    document.getElementById('countdown-wrap').style.display = 'none';
+    document.getElementById('clock-wrap').style.display = 'block';
+    document.getElementById('back-btn').style.display = 'none';
+    document.getElementById('reset-countdown-btn').style.display = 'none';
+    document.getElementById('sw-start-pause-btn').style.display = 'none';
+    document.getElementById('sw-reset-btn').style.display = 'none';
+    document.getElementById('countdown-btn').style.display = 'block';
+    document.getElementById('stopwatch-btn').style.display = 'block';
+}
+
+function startCountdown() {
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+        countdownState.timer = null;
+    }
     countdownState.timer = setInterval(function() {
         var now = new Date();
         var diff = countdownState.targetTime - now;
-        
         if (diff <= 0) {
-            // 倒计时结束，重置状态
             clearInterval(countdownState.timer);
             countdownState.isSet = false;
             countdownState.timer = null;
             countdownState.lastTextType = null;
-            
-            const endText = '00 分 00 秒';
+            var endText = formatCountdownDisplay(0);
             document.getElementById('countdown-show').innerText = endText;
-            adjustCountdownFontSize(endText); // 调整结束文本的字体
+            adjustCountdownFontSize(endText, countdownState);
             document.getElementById('countdown-title').innerText = '倒计时结束！';
-            // 优化：不隐藏重新设置按钮
-            document.getElementById('reset-countdown-btn').style.display = 'block'; 
+            document.getElementById('reset-countdown-btn').style.display = 'block';
             return;
         }
-        
-        // 计算时分秒
-        var h = Math.floor(diff / 3600000);
-        var m = Math.floor((diff % 3600000) / 60000);
-        var s = Math.floor((diff % 60000) / 1000);
-        
-        // 最终显示逻辑：
-        // 1. 不足1小时：只显示分秒（XX分 XX秒）
-        // 2. 1-9小时：显示个位小时 + 分秒（9时 05分 30秒）
-        // 3. 10小时及以上：显示完整小时 + 分秒（10时 05分 30秒）
-        var displayText = '';
-        if (h > 0) {
-            // 小时使用专用格式化（不补0），分秒正常补0
-            displayText = fmt(h, 'hour') + '时' + fmt(m) + '分' + fmt(s) + '秒';
-        } else {
-            displayText = fmt(m) + '分 ' + fmt(s) + '秒';
-        }
-        
-        // 更新显示内容
+        var displayText = formatCountdownDisplay(diff);
         document.getElementById('countdown-show').innerText = displayText;
-        // 动态调整字体大小（仅在文本类型变化时执行）
-        adjustCountdownFontSize(displayText);
-        
+        adjustCountdownFontSize(displayText, countdownState);
     }, 1000);
 }
 
-// 监听窗口大小变化，重新调整字体（重置文本类型确保重新计算）
+// ====================== 秒表 ======================
+function stopwatchAccumulatedMs() {
+    if (stopwatchState.running && stopwatchState.tickAt !== null) {
+        return stopwatchState.baseMs + (Date.now() - stopwatchState.tickAt);
+    }
+    return stopwatchState.baseMs;
+}
+
+function refreshStopwatchDisplay() {
+    var t = formatElapsed(stopwatchAccumulatedMs());
+    document.getElementById('countdown-show').innerText = t;
+    adjustCountdownFontSize(t, stopwatchState);
+}
+
+function startStopwatchTick() {
+    if (stopwatchState.timer) {
+        return;
+    }
+    stopwatchState.timer = setInterval(refreshStopwatchDisplay, 250);
+}
+
+function stopStopwatchTick() {
+    if (stopwatchState.timer) {
+        clearInterval(stopwatchState.timer);
+        stopwatchState.timer = null;
+    }
+}
+
+function syncStopwatchStartPauseLabel() {
+    document.getElementById('sw-start-pause-btn').innerText =
+        stopwatchState.running ? '暂停' : '开始';
+}
+
+function pauseStopwatchOnLeave() {
+    stopStopwatchTick();
+    if (stopwatchState.running) {
+        stopwatchState.baseMs = stopwatchAccumulatedMs();
+        stopwatchState.running = false;
+        stopwatchState.tickAt = null;
+    }
+    syncStopwatchStartPauseLabel();
+}
+
+function openStopwatch() {
+    if (countdownState.timer) {
+        clearInterval(countdownState.timer);
+        countdownState.timer = null;
+    }
+    showStopwatchPage();
+}
+
+function showStopwatchPage() {
+    countdownState.lastTextType = null;
+    document.getElementById('clock-wrap').style.display = 'none';
+    document.getElementById('countdown-wrap').style.display = 'flex';
+    document.getElementById('countdown-btn').style.display = 'none';
+    document.getElementById('stopwatch-btn').style.display = 'none';
+    document.getElementById('reset-countdown-btn').style.display = 'none';
+    document.getElementById('back-btn').style.display = 'block';
+    document.getElementById('sw-start-pause-btn').style.display = 'block';
+    document.getElementById('sw-reset-btn').style.display = 'block';
+    document.getElementById('countdown-title').innerText = '秒表';
+    stopwatchState.lastTextType = null;
+    var t = formatElapsed(stopwatchAccumulatedMs());
+    document.getElementById('countdown-show').innerText = t;
+    adjustCountdownFontSize(t, stopwatchState);
+    syncStopwatchStartPauseLabel();
+    if (stopwatchState.running) {
+        startStopwatchTick();
+    }
+}
+
+function toggleStopwatchRunning() {
+    if (stopwatchState.running) {
+        stopwatchState.baseMs = stopwatchAccumulatedMs();
+        stopwatchState.running = false;
+        stopwatchState.tickAt = null;
+        stopStopwatchTick();
+    } else {
+        stopwatchState.running = true;
+        stopwatchState.tickAt = Date.now();
+        startStopwatchTick();
+    }
+    syncStopwatchStartPauseLabel();
+    refreshStopwatchDisplay();
+}
+
+function resetStopwatch() {
+    stopStopwatchTick();
+    stopwatchState.running = false;
+    stopwatchState.baseMs = 0;
+    stopwatchState.tickAt = null;
+    stopwatchState.lastTextType = null;
+    syncStopwatchStartPauseLabel();
+    var zero = formatCountdownDisplay(0);
+    document.getElementById('countdown-show').innerText = zero;
+    adjustCountdownFontSize(zero, stopwatchState);
+}
+
 window.addEventListener('resize', function() {
-    const showElement = document.getElementById('countdown-show');
-    const currentText = showElement.innerText;
-    if (currentText && currentText !== '00 分 00 秒') {
-        // 重置文本类型，强制重新计算
+    var wrap = document.getElementById('countdown-wrap');
+    if (wrap.style.display !== 'flex') {
+        return;
+    }
+    var showElement = document.getElementById('countdown-show');
+    var currentText = showElement.innerText;
+    if (!currentText) {
+        return;
+    }
+    var title = document.getElementById('countdown-title').innerText;
+    if (title === '秒表') {
+        stopwatchState.lastTextType = null;
+        adjustCountdownFontSize(currentText, stopwatchState);
+    } else {
         countdownState.lastTextType = null;
-        adjustCountdownFontSize(currentText);
+        adjustCountdownFontSize(currentText, countdownState);
     }
 });
 
-// ====================== 事件绑定 & 初始化 ======================
 window.onload = function() {
-    // 初始化时钟
-    updateDigitalClock();
-    drawAnalogClock();
-    setInterval(updateDigitalClock, 1000);
-    setInterval(drawAnalogClock, 1000);
-    
-    // 初始化倒计时默认字体
-    adjustCountdownFontSize('00 分 00 秒');
-    
-    // 绑定按钮事件
+    var todayStr = toYMD(new Date());
+    var cdi = document.getElementById('custom-date-input');
+    cdi.value = todayStr;
+    cdi.min = todayStr;
+    updateCustomDateVisibility();
+    document.getElementById('date-mode-select').addEventListener('change', function() {
+        updateCustomDateVisibility();
+        if (document.getElementById('modal').style.display === 'block') {
+            initTimeSelector();
+            initCustomSelectControlsOnce();
+            refreshCustomSelectUiAfterModalDataChange();
+        }
+    });
+    cdi.addEventListener('change', function() {
+        if (document.getElementById('modal').style.display === 'block') {
+            initTimeSelector();
+            initCustomSelectControlsOnce();
+            refreshCustomSelectUiAfterModalDataChange();
+        }
+    });
+    clockTick();
+    setInterval(clockTick, 1000);
+    var zero = formatCountdownDisplay(0);
+    document.getElementById('countdown-show').innerText = zero;
+    adjustCountdownFontSize(zero, countdownState);
     document.getElementById('fullscreen-btn').onclick = toggleFullscreen;
     document.getElementById('countdown-btn').onclick = openCountdown;
-    document.getElementById('reset-countdown-btn').onclick = openCountdownModal; // 重新设置倒计时
+    document.getElementById('stopwatch-btn').onclick = openStopwatch;
+    document.getElementById('reset-countdown-btn').onclick = openCountdownModal;
     document.getElementById('back-btn').onclick = backToClock;
+    document.getElementById('sw-start-pause-btn').onclick = toggleStopwatchRunning;
+    document.getElementById('sw-reset-btn').onclick = resetStopwatch;
     document.getElementById('confirm').onclick = setCountdown;
     document.getElementById('cancel').onclick = closeModal;
     document.getElementById('overlay').onclick = closeModal;
